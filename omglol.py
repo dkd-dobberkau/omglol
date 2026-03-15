@@ -80,10 +80,12 @@ class OmgLol:
         """
         Create or update a weblog entry.
 
-        The omg.lol weblog format uses a frontmatter-style header:
+        The omg.lol weblog format uses a frontmatter block delimited by ---:
 
+            ---
             Date: 2025-03-14 12:00
             Slug: optional-custom-slug
+            ---
 
             # Your title here
 
@@ -104,8 +106,8 @@ class OmgLol:
         if slug is None:
             slug = re.sub(r"[^\w]+", "-", title.lower()).strip("-")
 
-        # Compose the omg.lol weblog source format
-        frontmatter = f"Date: {date_str}\nSlug: {slug}"
+        # Compose the omg.lol weblog source format with --- delimiters
+        frontmatter = f"---\nDate: {date_str}\nSlug: {slug}\n---"
         body = f"# {title}\n\n{content.strip()}"
         source = f"{frontmatter}\n\n{body}"
 
@@ -212,6 +214,32 @@ class OmgLol:
         """Retrieve weblog configuration."""
         return self._request("GET", f"/address/{self.address}/weblog/configuration")
 
+    # ── Pastebin ───────────────────────────────────────────────────────────────
+
+    def list_pastes(self) -> list[dict]:
+        """Return all pastes (including unlisted, requires auth)."""
+        response = self._request("GET", f"/address/{self.address}/pastebin")
+        return response.get("pastes", [])
+
+    def get_paste(self, title: str) -> dict:
+        """Fetch a single paste by title (public, no auth required)."""
+        response = self._request("GET", f"/address/{self.address}/pastebin/{title}")
+        return response.get("paste", response)
+
+    def create_paste(self, title: str, content: str) -> dict:
+        """Create or update a paste."""
+        response = self._request(
+            "POST",
+            f"/address/{self.address}/pastebin/",
+            json={"title": title, "content": content},
+        )
+        return response
+
+    def delete_paste(self, title: str) -> str:
+        """Permanently delete a paste. Returns the confirmation message."""
+        response = self._request("DELETE", f"/address/{self.address}/pastebin/{title}")
+        return response.get("message", "Deleted.")
+
     # ── Statuslog ─────────────────────────────────────────────────────────────
 
     def post_status(self, content: str, emoji: str = "✍️") -> dict:
@@ -227,6 +255,111 @@ class OmgLol:
         """Retrieve all statuses for the address."""
         response = self._request("GET", f"/address/{self.address}/statuses/")
         return response.get("statuses", [])
+
+    # ── PURLs (Persistent URLs) ────────────────────────────────────────────────
+
+    def list_purls(self) -> list[dict]:
+        """Return all PURLs for the address."""
+        response = self._request("GET", f"/address/{self.address}/purls")
+        return response.get("purls", [])
+
+    def get_purl(self, name: str) -> dict:
+        """Fetch a single PURL by name."""
+        response = self._request("GET", f"/address/{self.address}/purl/{name}")
+        return response.get("purl", response)
+
+    def create_purl(self, name: str, url: str, listed: bool = True) -> dict:
+        """Create a new PURL (persistent redirect)."""
+        return self._request(
+            "POST",
+            f"/address/{self.address}/purl",
+            json={"name": name, "url": url, "listed": listed},
+        )
+
+    def delete_purl(self, name: str) -> str:
+        """Delete a PURL."""
+        response = self._request("DELETE", f"/address/{self.address}/purl/{name}")
+        return response.get("message", "Deleted.")
+
+    # ── Now page ───────────────────────────────────────────────────────────────
+
+    def get_now(self) -> dict:
+        """Retrieve the /now page content (public, no auth required)."""
+        return self._request("GET", f"/address/{self.address}/now")
+
+    def update_now(self, content: str, listed: bool = True) -> dict:
+        """Update the /now page."""
+        return self._request(
+            "POST",
+            f"/address/{self.address}/now",
+            json={"content": content, "listed": "1" if listed else "0"},
+        )
+
+    @staticmethod
+    def get_now_garden() -> list[dict]:
+        """Retrieve the Now Garden — all listed /now pages (no auth)."""
+        resp = requests.get("https://api.omg.lol/now/garden")
+        data = resp.json()
+        return data.get("response", {}).get("garden", [])
+
+    # ── DNS ────────────────────────────────────────────────────────────────────
+
+    def list_dns_records(self) -> list[dict]:
+        """Return all DNS records for the address."""
+        response = self._request("GET", f"/address/{self.address}/dns")
+        return response.get("dns", [])
+
+    def create_dns_record(self, record_type: str, name: str, data: str, ttl: int = 3600) -> dict:
+        """Create a DNS record."""
+        return self._request(
+            "POST",
+            f"/address/{self.address}/dns",
+            json={"type": record_type, "name": name, "data": data, "ttl": ttl},
+        )
+
+    def update_dns_record(self, record_id: str, record_type: str, name: str, data: str, ttl: int = 3600) -> dict:
+        """Update an existing DNS record."""
+        return self._request(
+            "PATCH",
+            f"/address/{self.address}/dns/{record_id}",
+            json={"type": record_type, "name": name, "data": data, "ttl": ttl},
+        )
+
+    def delete_dns_record(self, record_id: str) -> str:
+        """Delete a DNS record."""
+        response = self._request("DELETE", f"/address/{self.address}/dns/{record_id}")
+        return response.get("message", "Deleted.")
+
+    # ── Web / Profile ──────────────────────────────────────────────────────────
+
+    def get_web(self) -> dict:
+        """Retrieve the web page / profile content."""
+        return self._request("GET", f"/address/{self.address}/web")
+
+    def update_web(self, content: str, publish: bool = True) -> dict:
+        """Update and optionally publish the web page / profile."""
+        payload = {"content": content}
+        if publish:
+            payload["publish"] = True
+        return self._request(
+            "POST",
+            f"/address/{self.address}/web",
+            json=payload,
+        )
+
+    # ── Email ──────────────────────────────────────────────────────────────────
+
+    def get_email_forwarding(self) -> dict:
+        """Retrieve current email forwarding settings."""
+        return self._request("GET", f"/address/{self.address}/email/")
+
+    def set_email_forwarding(self, destination: str) -> dict:
+        """Set email forwarding destination."""
+        return self._request(
+            "POST",
+            f"/address/{self.address}/email/",
+            json={"destination": destination},
+        )
 
     # ── Account / address info ────────────────────────────────────────────────
 
