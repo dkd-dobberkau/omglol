@@ -256,8 +256,8 @@ class OmgLol:
         response = self._request(
             "POST",
             f"/address/{self.address}/weblog/entry/{entry_id}",
-            data=source,
-            headers={"Content-Type": "text/plain"},
+            data=source.encode("utf-8"),
+            headers={"Content-Type": "text/plain; charset=utf-8"},
         )
         return Post.from_dict(response.get("entry", response))
 
