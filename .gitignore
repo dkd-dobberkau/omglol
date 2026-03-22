@@ -11,3 +11,9 @@ wheels/
 
 # Environment variables
 .env
+
+# Sync state
+.sync_state.json
+
+# Playwright MCP
+.playwright-mcp/
